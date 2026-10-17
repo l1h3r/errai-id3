@@ -26,9 +26,14 @@ pub struct Text<'a> {
 // Text Content
 // =============================================================================
 
+/// The value of a text information frame.
+///
+/// The [`Display`] impl joins list values with `:`.
 #[derive(Clone, Hash, PartialEq, Eq, PartialOrd, Ord)]
 pub enum TextContent<'a> {
+  /// A single string.
   Text(Cow<'a, str>),
+  /// Multiple NULL-separated strings.
   List(Vec<Cow<'a, str>>),
 }
 
@@ -74,9 +79,7 @@ impl Debug for TextContent<'_> {
 impl Display for TextContent<'_> {
   fn fmt(&self, f: &mut Formatter<'_>) -> FmtResult {
     match self {
-      Self::Text(inner) => {
-        Display::fmt(inner, f)
-      }
+      Self::Text(inner) => Display::fmt(inner, f),
       Self::List(inner) => {
         let mut init: bool = false;
 

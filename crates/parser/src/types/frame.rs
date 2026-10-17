@@ -25,7 +25,7 @@ impl<const S: usize> FrameId<S> {
   /// # Safety
   ///
   /// Caller is responsible for ensuring the given bytes form a valid frame
-  /// identifier. See [`utils::is_frame_id`] for more information.
+  /// identifier, composed only of the characters `A-Z` and `0-9`.
   pub const unsafe fn new_unchecked(inner: [u8; S]) -> Self {
     debug_assert!(utils::is_frame_id(inner.as_slice()));
     Self { inner }

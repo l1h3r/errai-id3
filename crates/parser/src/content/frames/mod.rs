@@ -79,6 +79,7 @@ pub use self::sylt::Sylt;
 pub use self::sylt::SyltIter;
 pub use self::sytc::Sytc;
 pub use self::text::Text;
+pub use self::text::TextContent;
 pub use self::txxx::Txxx;
 pub use self::ufid::Ufid;
 pub use self::unkn::Unkn;

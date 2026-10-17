@@ -1,5 +1,5 @@
-use byteorder::ReadBytesExt;
 use byteorder::BE;
+use byteorder::ReadBytesExt;
 use std::io::Read;
 use std::io::Result;
 

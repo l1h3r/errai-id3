@@ -76,12 +76,8 @@ impl<'a> Decoder<'a> {
         self.cursor.set_position(index + frame.total_size() as u64);
         Ok(Some(frame))
       }
-      Ok(None) => {
-        Ok(None)
-      }
-      Err(error) => {
-        Err(error)
-      }
+      Ok(None) => Ok(None),
+      Err(error) => Err(error),
     }
   }
 

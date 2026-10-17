@@ -42,7 +42,7 @@ impl Header {
   #[inline]
   pub const fn data_len(&self) -> u32 {
     match self.exheader() {
-      Some(header) => self.data_len - header.ext_size(),
+      Some(header) => self.data_len.saturating_sub(header.ext_size()),
       None => self.data_len,
     }
   }
@@ -105,12 +105,12 @@ impl Header {
     R: ReadExt,
   {
     // Always "ID3" to indicate that this is an ID3 tag.
-    if reader.read_array()? != Header::IDENTIFIER {
+    if ReadExt::read_array(&mut reader)? != Header::IDENTIFIER {
       return Err(Error::tag(TagField::Identifier));
     }
 
     // 2 bytes - [major, revision].
-    let version: Version = match reader.read_array()? {
+    let version: Version = match ReadExt::read_array(&mut reader)? {
       [0x02, _] => Version::ID3v22,
       [0x03, _] => Version::ID3v23,
       [0x04, _] => Version::ID3v24,
@@ -132,7 +132,8 @@ impl Header {
 
     if this.flag_extended_header() {
       if this.flag_unsynchronisation() {
-        panic!("TODO: Handle UNSYNCHRONISATION");
+        // TODO: Handle unsynchronisation of the extended header.
+        return Err(Error::unsupported("unsynchronised extended header"));
       }
 
       let exheader: ExtHeader = match this.version() {

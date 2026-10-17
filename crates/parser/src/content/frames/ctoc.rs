@@ -4,6 +4,7 @@ use core::num::NonZeroU8;
 
 use crate::decode::Decode;
 use crate::decode::Decoder;
+use crate::error::Error;
 use crate::error::Result;
 use crate::frame::DynFrame;
 use crate::types::Slice;
@@ -104,7 +105,10 @@ impl<'a> Iterator for CtocIter<'a> {
       self.index += 1;
       Some(self.inner.decode().map(CtocItem::Entry))
     } else {
-      panic!("TODO: Parse Embedded Frame");
+      // TODO: Parse embedded frames. The decoder is drained so the error is
+      //       only reported once.
+      let _skip: &Slice = self.inner.remaining();
+      Some(Err(Error::unsupported("embedded CTOC frame")))
     }
   }
 }

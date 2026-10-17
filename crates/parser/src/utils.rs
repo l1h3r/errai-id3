@@ -2,7 +2,11 @@ use core::str::from_utf8;
 
 #[cfg(feature = "zlib")]
 use flate2::read::ZlibDecoder;
+#[cfg(feature = "zlib")]
+use std::io::Read;
 
+#[cfg(not(feature = "zlib"))]
+use crate::error::Error;
 use crate::error::Result;
 use crate::types::Bytes;
 use crate::types::Slice;
@@ -87,17 +91,6 @@ pub const fn is_frame_id(mut input: &[u8]) -> bool {
   input.is_empty()
 }
 
-/// Returns `true` if the input bytes are a valid ISO-8859-1 string.
-///
-/// Note: All characters must be in the range of `0x20-0xFF`.
-pub const fn is_latin1(mut input: &[u8]) -> bool {
-  while let [0x20..=0xFF, tail @ ..] = input {
-    input = tail;
-  }
-
-  input.is_empty()
-}
-
 /// Returns `true` if the input bytes are valid ASCII digits.
 pub const fn is_ascii_digit(mut input: &[u8]) -> bool {
   while let [b'0'..=b'9', tail @ ..] = input {
@@ -125,14 +118,29 @@ pub const fn is_null(mut input: &[u8]) -> bool {
 // Compression
 // =============================================================================
 
+/// Upper bound on the buffer preallocated for decompressed data.
+///
+/// The decompressed size is read from the file and is not trusted.
+#[cfg(feature = "zlib")]
+const MAX_PREALLOC: usize = 1 << 20;
+
 #[cfg(feature = "zlib")]
 pub fn decompress(input: &Slice, size: Option<usize>) -> Result<Bytes> {
-  ZlibDecoder::new(input.cursor())
-    .read_all(size)
-    .map_err(Into::into)
+  let mut decoder: ZlibDecoder<_> = ZlibDecoder::new(input.cursor());
+  let capacity: Option<usize> = size.map(|size| size.min(MAX_PREALLOC));
+
+  let output: Bytes = match size {
+    // Never produce more output than the frame header declares.
+    Some(size) => Read::take(decoder, size as u64).read_all(capacity)?,
+    None => decoder.read_all(capacity)?,
+  };
+
+  Ok(output)
 }
 
 #[cfg(not(feature = "zlib"))]
 pub fn decompress(_input: &Slice, _size: Option<usize>) -> Result<Bytes> {
-  panic!("Enable `zlib` feature to use ZLIB decompression.");
+  Err(Error::unsupported(
+    "compressed frame (enable the `zlib` feature)",
+  ))
 }

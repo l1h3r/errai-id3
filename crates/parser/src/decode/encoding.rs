@@ -1,6 +1,5 @@
 use alloc::borrow::Cow;
 use core::str::from_utf8;
-use core::str::from_utf8_unchecked;
 
 use crate::decode::Decode;
 use crate::decode::Decoder;
@@ -8,7 +7,6 @@ use crate::error::Error;
 use crate::error::ErrorKind;
 use crate::error::Result;
 use crate::types::Slice;
-use crate::utils;
 
 const BOM_BE: &[u8] = &[0xFE, 0xFF];
 const BOM_LE: &[u8] = &[0xFF, 0xFE];
@@ -62,22 +60,25 @@ impl Decode<'_> for Encoding {
 copy_into_owned!(Encoding);
 
 fn decode_latin1(slice: &Slice) -> Cow<'_, str> {
-  if utils::is_latin1(slice.as_ref()) {
-    // SAFETY: We just checked if the slice was valid LATIN-1
-    //         and therefore valid UTF-8.
-    Cow::Borrowed(unsafe { from_utf8_unchecked(slice.as_ref()) })
-  } else {
-    // TODO: Should probably return error here.
-    Cow::Owned(slice.iter().copied().map(char::from).collect())
+  // Note: Only the ASCII subset of ISO-8859-1 has the same representation in
+  //       UTF-8 and can be borrowed. Bytes 0x80-0xFF map to the Unicode code
+  //       points U+0080-U+00FF, which are two bytes wide in UTF-8.
+  match from_utf8(slice.as_ref()) {
+    Ok(text) if text.is_ascii() => Cow::Borrowed(text),
+    // TODO: Should probably return an error for control characters.
+    _ => Cow::Owned(slice.iter().copied().map(char::from).collect()),
   }
 }
 
 fn decode_utf16_bom(slice: &Slice) -> Result<Cow<'_, str>> {
-  debug_assert!(slice.len() > 1);
+  // Note: Empty strings are commonly written without a BOM.
+  if slice.is_empty() {
+    return Ok(Cow::Borrowed(""));
+  }
 
-  match &slice.as_ref()[..2] {
-    BOM_BE => decode_utf16_be(&slice[2..]),
-    BOM_LE => decode_utf16_le(&slice[2..]),
+  match slice.as_ref().get(..2) {
+    Some(BOM_BE) => decode_utf16_be(&slice[2..]),
+    Some(BOM_LE) => decode_utf16_le(&slice[2..]),
     _ => Err(Error::new(ErrorKind::InvalidFrameData)),
   }
 }

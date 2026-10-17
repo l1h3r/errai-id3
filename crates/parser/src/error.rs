@@ -29,7 +29,7 @@ impl Error {
     }
   }
 
-  pub(crate) fn new_std(kind: ErrorKind, source: impl StdError + 'static) -> Self {
+  pub(crate) fn new_std(kind: ErrorKind, source: impl StdError + Send + Sync + 'static) -> Self {
     Self {
       kind,
       base: ErrorBase::Source(Box::new(source)),
@@ -38,6 +38,10 @@ impl Error {
 
   pub(crate) const fn tag(field: TagField) -> Self {
     Self::new(ErrorKind::InvalidField(field))
+  }
+
+  pub(crate) const fn unsupported(feature: &'static str) -> Self {
+    Self::new(ErrorKind::Unsupported(feature))
   }
 
   /// Get the category of the error.
@@ -49,7 +53,13 @@ impl Error {
 
 impl Display for Error {
   fn fmt(&self, f: &mut Formatter<'_>) -> FmtResult {
-    write!(f, "Error")
+    Display::fmt(&self.kind, f)?;
+
+    if let ErrorBase::Source(ref inner) = self.base {
+      write!(f, ": {inner}")?;
+    }
+
+    Ok(())
   }
 }
 
@@ -82,7 +92,7 @@ impl From<TryFromIntError> for Error {
 // =============================================================================
 
 /// The types of errors that may occur.
-#[derive(Clone, Copy, Debug)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum ErrorKind {
   /// I/O error.
   IO,
@@ -98,6 +108,23 @@ pub enum ErrorKind {
   InvalidBitFlag,
   /// Invalid data found in frame.
   InvalidFrameData,
+  /// Valid ID3 feature that is not supported by this library.
+  Unsupported(&'static str),
+}
+
+impl Display for ErrorKind {
+  fn fmt(&self, f: &mut Formatter<'_>) -> FmtResult {
+    match self {
+      Self::IO => f.write_str("i/o error"),
+      Self::Int => f.write_str("integer conversion error"),
+      Self::InvalidField(field) => write!(f, "invalid tag field: {field}"),
+      Self::InvalidVersion => f.write_str("invalid tag version"),
+      Self::InvalidFrameId => f.write_str("invalid frame identifier"),
+      Self::InvalidBitFlag => f.write_str("invalid frame header flag"),
+      Self::InvalidFrameData => f.write_str("invalid frame data"),
+      Self::Unsupported(feature) => write!(f, "unsupported feature: {feature}"),
+    }
+  }
 }
 
 // =============================================================================
@@ -105,7 +132,7 @@ pub enum ErrorKind {
 // =============================================================================
 
 /// Fields of an ID3v2 tag.
-#[derive(Clone, Copy, Debug)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum TagField {
   /// Header identifier.
   Identifier,
@@ -119,6 +146,18 @@ pub enum TagField {
   ExtFlagData,
 }
 
+impl Display for TagField {
+  fn fmt(&self, f: &mut Formatter<'_>) -> FmtResult {
+    match self {
+      Self::Identifier => f.write_str("identifier"),
+      Self::Version => f.write_str("version"),
+      Self::ExtSize => f.write_str("extended header size"),
+      Self::ExtFlagSize => f.write_str("extended header flag size"),
+      Self::ExtFlagData => f.write_str("extended header flag data"),
+    }
+  }
+}
+
 // =============================================================================
 // Error Base
 // =============================================================================
@@ -126,7 +165,7 @@ pub enum TagField {
 #[derive(Debug)]
 enum ErrorBase {
   Ignore,
-  Source(Box<dyn StdError + 'static>),
+  Source(Box<dyn StdError + Send + Sync + 'static>),
 }
 
 impl Display for ErrorBase {

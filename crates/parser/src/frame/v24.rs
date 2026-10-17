@@ -87,10 +87,19 @@ impl<'a> FrameV4<'a> {
     let name: &str = self.identifier_str();
     let data: &Slice = self.frame_data();
 
-    if let Some(size) = self.extra_data().dlen() {
-      Content::decode2(Self::VERSION, name, data, size)
-    } else {
-      Content::decode(Self::VERSION, name, data)
+    if self.flag_bytes.contains(FrameV4Flags::ENCRYPTION) {
+      return Err(Error::unsupported("encrypted frame"));
+    }
+
+    // Note: The data length indicator may also be present on uncompressed
+    //       frames, so it does not imply compression on its own.
+    match (
+      self.flag_bytes.contains(FrameV4Flags::COMPRESSION),
+      self.extra_data().dlen(),
+    ) {
+      (true, Some(size)) => Content::decode2(Self::VERSION, name, data, size),
+      (true, None) => Err(Error::new(ErrorKind::InvalidBitFlag)),
+      (false, _) => Content::decode(Self::VERSION, name, data),
     }
   }
 
@@ -111,7 +120,7 @@ impl<'a> FrameV4<'a> {
     let frame_data: &Slice = reader
       .get_ref()
       .skip(Self::SIZE + extra_data.size())
-      .take(descriptor.get() as usize - extra_data.size());
+      .take((descriptor.get() as usize).saturating_sub(extra_data.size()));
 
     Ok(Some(Self {
       identifier,
@@ -252,12 +261,13 @@ impl FrameV4Extra {
 
     // Note: May include `DATA_LENGTH_INDICATOR` but not mandatory.
     if bitflags.contains(FrameV4Flags::UNSYNCHRONISATION) {
-      panic!("TODO: Handle UNSYNCHRONISATION - V4");
+      // TODO: Handle per-frame unsynchronisation.
+      return Err(Error::unsupported("unsynchronised ID3v2.4 frame"));
     }
 
     if bitflags.contains(FrameV4Flags::DATA_LENGTH_INDICATOR) {
-      // TODO: This is a synchsafe integer.
-      this.dlen = Some(reader.read_u32()?);
+      // 32-bit "synchsafe" integer.
+      this.dlen = Some(reader.read_u28_unsync()?);
     } else if require_dlen {
       return Err(Error::new(ErrorKind::InvalidBitFlag));
     }

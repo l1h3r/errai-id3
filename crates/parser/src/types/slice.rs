@@ -51,12 +51,18 @@ impl Slice {
     self.inner.iter()
   }
 
-  /// Returns a sublice without doing bounds checking.
+  /// Returns a subslice without doing bounds checking.
+  ///
+  /// # Safety
+  ///
+  /// Calling this method with an out-of-bounds index is undefined behavior.
+  /// See [`slice::get_unchecked`] for more information.
   pub unsafe fn get_unchecked<I>(&self, index: I) -> &Self
   where
     I: SliceIndex<[u8], Output = [u8]>,
   {
-    Self::new(self.inner.get_unchecked(index))
+    // SAFETY: The caller guarantees that `index` is in bounds.
+    Self::new(unsafe { self.inner.get_unchecked(index) })
   }
 
   /// Wrap the slice in a `Cursor` that implements [`Read`][std::io::Read].

@@ -1,12 +1,38 @@
 [package]
 name = "errai"
-version = "0.1.0"
-edition = "2021"
-license = "MIT OR Apache-2.0"
+description = "A zero-copy ID3v2 tag reader"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
 readme = "README.md"
+publish = false
 
 [workspace]
+resolver = "3"
 members = [
   "crates/derive",
   "crates/parser",
 ]
+
+[workspace.package]
+version = "0.1.0"
+edition = "2024"
+rust-version = "1.85"
+license = "MIT OR Apache-2.0"
+repository = "https://github.com/l1h3r/errai-id3"
+
+[workspace.lints.rust]
+unsafe_op_in_unsafe_fn = "warn"
+unused_qualifications = "warn"
+
+[workspace.lints.clippy]
+all = { level = "warn", priority = -1 }
+undocumented_unsafe_blocks = "warn"
+
+[dependencies]
+parser = { version = "=0.1.0", path = "crates/parser" }
+
+[lints]
+workspace = true

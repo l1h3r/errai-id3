@@ -20,3 +20,5 @@ pub mod frame;
 pub mod id3v2;
 pub mod types;
 pub mod unsync;
+
+pub use self::traits::IntoOwned;

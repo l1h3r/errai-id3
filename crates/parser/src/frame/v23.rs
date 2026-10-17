@@ -3,6 +3,7 @@ use core::num::NonZeroU32;
 use std::io::Cursor;
 
 use crate::content::Content;
+use crate::error::Error;
 use crate::error::Result;
 use crate::traits::ReadExt;
 use crate::types::FrameId;
@@ -85,6 +86,10 @@ impl<'a> FrameV3<'a> {
     let name: &str = self.identifier_str();
     let data: &Slice = self.frame_data();
 
+    if self.flag_bytes.contains(FrameV3Flags::ENCRYPTION) {
+      return Err(Error::unsupported("encrypted frame"));
+    }
+
     if let Some(size) = self.extra_data().comp() {
       Content::decode2(Self::VERSION, name, data, size)
     } else {
@@ -109,7 +114,7 @@ impl<'a> FrameV3<'a> {
     let frame_data: &Slice = reader
       .get_ref()
       .skip(Self::SIZE + extra_data.size())
-      .take(descriptor.get() as usize - extra_data.size());
+      .take((descriptor.get() as usize).saturating_sub(extra_data.size()));
 
     Ok(Some(Self {
       identifier,

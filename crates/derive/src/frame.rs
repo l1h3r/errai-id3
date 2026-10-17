@@ -1,9 +1,21 @@
 use proc_macro2::Span;
 use proc_macro2::TokenStream;
-use quote::quote;
 use quote::ToTokens;
+use quote::quote;
 use std::borrow::Cow;
 use syn::__private::CustomToken;
+use syn::Attribute;
+use syn::Error;
+use syn::Expr;
+use syn::GenericArgument;
+use syn::Ident;
+use syn::Lifetime;
+use syn::LitStr;
+use syn::PathArguments;
+use syn::PathSegment;
+use syn::Result;
+use syn::Token;
+use syn::Type;
 use syn::braced;
 use syn::buffer::Cursor;
 use syn::meta::ParseNestedMeta;
@@ -17,18 +29,6 @@ use syn::token;
 use syn::token::Gt;
 use syn::token::Lt;
 use syn::token::Token;
-use syn::Attribute;
-use syn::Error;
-use syn::Expr;
-use syn::GenericArgument;
-use syn::Ident;
-use syn::Lifetime;
-use syn::LitStr;
-use syn::PathArguments;
-use syn::PathSegment;
-use syn::Result;
-use syn::Token;
-use syn::Type;
 
 type FrameFields = Punctuated<FrameField, Token![,]>;
 
@@ -391,7 +391,10 @@ impl Parse for FrameFieldAttr {
           info = Some(content.value());
         } else if meta.path.is_ident("borrow") {
           if borrow {
-            return Err(Error::new(meta.input.span(), "Duplicate `borrow` Attribute."));
+            return Err(Error::new(
+              meta.input.span(),
+              "Duplicate `borrow` Attribute.",
+            ));
           }
 
           borrow = true;
@@ -464,7 +467,7 @@ impl<'a> FrameType<'a> {
     limit: usize,
     index: usize,
   ) -> Option<&'b Type> {
-    let Type::Path(ref path) = kind else {
+    let Type::Path(path) = kind else {
       return None;
     };
 

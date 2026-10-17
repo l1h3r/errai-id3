@@ -34,6 +34,8 @@ use crate::content::Uslt;
 use crate::content::Wurl;
 use crate::content::Wxxx;
 use crate::decode::Decoder;
+use crate::error::Error;
+use crate::error::ErrorKind;
 use crate::error::Result;
 use crate::traits::IntoOwned;
 use crate::types::Bytes;
@@ -138,12 +140,14 @@ impl_content! {
 
 impl<'a> Content<'a> {
   /// Decode a slice of bytes with the format specified by `name`.
+  ///
+  /// Frames that are not recognized, or recognized but not yet implemented,
+  /// are returned as [`Content::Unkn`] containing the raw frame data.
   pub fn decode(version: Version, name: &str, slice: &'a Slice) -> Result<Self> {
     let mut decoder: Decoder<'_> = Decoder::new(slice);
 
-    let this: Result<Self> = match (version, name) {
-      (Version::ID3v11, _) => panic!("Invalid Version: ID3v11"),
-      (Version::ID3v12, _) => panic!("Invalid Version: ID3v12"),
+    let this: Self = match (version, name) {
+      (Version::ID3v11 | Version::ID3v12, _) => return Err(Error::new(ErrorKind::InvalidVersion)),
       // =======================================================================
       // ID3v2.2 Frames
       // =======================================================================
@@ -151,7 +155,6 @@ impl<'a> Content<'a> {
       (Version::ID3v22, "CNT") => decoder.decode_v2().map(Self::Pcnt), // Play counter
       (Version::ID3v22, "COM") => decoder.decode_v2().map(Self::Comm), // Comments
       (Version::ID3v22, "CRA") => decoder.decode_v2().map(Self::Aenc), // Audio encryption
-      (Version::ID3v22, "CRM") => panic!("TODO: Decode CRM"),          // Encrypted meta frame
       (Version::ID3v22, "ETC") => decoder.decode_v2().map(Self::Etco), // Event timing codes
       (Version::ID3v22, "EQU") => decoder.decode_v2().map(Self::Equa), // Equalization
       (Version::ID3v22, "GEO") => decoder.decode_v2().map(Self::Geob), // General encapsulated object
@@ -290,11 +293,7 @@ impl<'a> Content<'a> {
       // =======================================================================
       // ID3v2.4 Frames
       // =======================================================================
-      (Version::ID3v24, "ASPI") => panic!("TODO: Decode ASPI"),
-      (Version::ID3v24, "EQU2") => panic!("TODO: Decode EQU2"),
       (Version::ID3v24, "RVA2") => decoder.decode().map(Self::Rva2), // relative volume adjustment (2)
-      (Version::ID3v24, "SEEK") => panic!("TODO: Decode SEEK"),
-      (Version::ID3v24, "SIGN") => panic!("TODO: Decode SIGN"),
       (Version::ID3v24, "TDEN") => decoder.decode().map(Self::Text), // encoding time
       (Version::ID3v24, "TDOR") => decoder.decode().map(Self::Text), // original release time
       (Version::ID3v24, "TDRC") => decoder.decode().map(Self::Text), // recording time
@@ -318,20 +317,19 @@ impl<'a> Content<'a> {
       // =======================================================================
       (Version::ID3v23 | Version::ID3v24, "ATXT") => decoder.decode().map(Self::Atxt),
       // =======================================================================
-      // Unoffical Frames
-      // =======================================================================
-      (_, "RGAD") => panic!("TODO: Decode RGAD"),
-      (_, "TCMP") => panic!("TODO: Decode TCMP"),
-      (_, "TSO2") => panic!("TODO: Decode TSO2"),
-      (_, "TSOC") => panic!("TODO: Decode TSOC"),
-      (_, "XRVA") => panic!("TODO: Decode XRVA"),
-      // =======================================================================
       // Unknown Frame
       // =======================================================================
-      _ => panic!("Unknown Frame: {:?}", name),
-    };
+      //
+      // TODO: Decode CRM, ASPI, EQU2, SEEK, SIGN, and the unofficial
+      //       RGAD/TCMP/TSO2/TSOC/XRVA frames. These are currently returned as
+      //       raw data.
+      _ => decoder.decode().map(Self::Unkn),
+    }?;
 
-    assert!(decoder.is_empty());
+    // Trailing bytes are only permitted if they are padding.
+    if !utils::is_null(decoder.remaining().as_ref()) {
+      return Err(Error::new(ErrorKind::InvalidFrameData));
+    }
 
     Ok(this)
   }
